@@ -1,0 +1,14 @@
+---
+Env: "dev"
+VpcCidr: "10.0.0.0/16"
+PublicSubnet1Cidr: "10.0.1.0/24"
+PublicSubnet2Cidr: "10.0.2.0/24"
+PublicSubnet3Cidr: "10.0.3.0/24"
+EnableVpcFlowLogs: "true"
+FlowLogsRentionPeriod: "3"
+HostedZone: "/hostedzone/xxxxxxxxxxxxxxxxxx"
+DomainName: "sftp.sample-dev.ninja"
+IPv4PrefixlistCidrlimit: "60"  #Increase AWS ServiceQuota if number of entries per SG needs to be increased.
+IPv6PrefixlistCidrlimit: "60"  #Increase AWS ServiceQuota if number of entries per SG needs to be increased.
+BaseS3Bucket: "serverless-sftp-bucket"
+SAMDeploymentS3BucketName: "sam-serverless-sftp-deploy-bucket" #has to be unique

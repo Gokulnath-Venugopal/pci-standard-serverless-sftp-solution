@@ -1,0 +1,54 @@
+---
+version: '2.3'
+services:
+  stackup:
+    image: realestate/stackup:latest
+    volumes:
+      - "$HOME/.aws:/root/.aws"
+      - ".:/build"
+    working_dir: /build
+    environment:
+      - AWS_DEFAULT_REGION
+      - AWS_PROFILE
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+  samcli:
+    image: amazon/aws-sam-cli-build-image-python3.9:latest
+    volumes:
+      - "$HOME/.aws:/root/.aws"
+      - ".:/build"
+    working_dir: /build
+    environment:
+      - AWS_DEFAULT_REGION
+      - AWS_PROFILE
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+  yamllint:
+    image: boiyaa/yamllint:latest
+    volumes:
+      - ".:/workdir"
+    working_dir: /workdir
+  awscli:
+    image: xueshanf/awscli:latest
+    volumes:
+      - "$HOME/.aws:/root/.aws"
+      - ".:/build"
+    working_dir: /build
+    environment:
+      - AWS_DEFAULT_REGION
+      - AWS_PROFILE
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+  shellcheck:
+    image: koalaman/shellcheck-alpine:latest
+    volumes:
+      - ".:/build"
+    working_dir: /build
+  cfnlint:
+    image: amaysim/cfn-python-lint:latest
+    volumes:
+      - ".:/build"
+    working_dir: /build

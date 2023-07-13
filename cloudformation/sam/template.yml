@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Secrets-Validator
+Resources:
+  SecretsValidatorFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: secrets-validation/
+      Handler: validate.lambda_handler
+      Runtime: python3.9
+      #Description: The function is triggered based on create or insert or update or delete events on secret manager and validates all user entered value
+      Policies:
+      - SecretsManagerReadWrite
+      - AmazonSESFullAccess      
+      Timeout: 900          #Runtime Parameters (max value)
+      #MemorySize: 10240     #Runtime Parameters (max value)
+      #Tags:
+  SecretsValidatorEventRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "Secrets-Validator-EventRule"
+      EventPattern: 
+        source: 
+          - "aws.secretsmanager"
+      State: "ENABLED"
+      Targets: 
+        - 
+          Arn: 
+            Fn::GetAtt: 
+              - "SecretsValidatorFunction"
+              - "Arn"
+          Id: "TargetFunctionV1"
+  PermissionForEventsToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: 
+        Ref: "SecretsValidatorFunction"
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: 
+        Fn::GetAtt: 
+          - "SecretsValidatorEventRule"
+          - "Arn"
+
+  IPv4WhitelistingFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: IPv4_Whitelisting/
+      Handler: IPv4_Whitelisting.lambda_handler
+      Runtime: python3.9
+      #Description: The function is triggered based on create or insert or update or delete events on secret manager and validates IP address and add the IP's to prefix list if necessary.
+      Policies:
+      - SecretsManagerReadWrite
+      - AmazonSESFullAccess
+      - AdministratorAccess      
+      Timeout: 900          #Runtime Parameters (max value)
+      #MemorySize: 10240     #Runtime Parameters (max value)
+      #Tags:
+  IPv4WhitelistingEventRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "IPv4Whitelisting-EventRule"
+      EventPattern: 
+        source: 
+          - "aws.secretsmanager"
+      State: "ENABLED"
+      Targets: 
+        - 
+          Arn: 
+            Fn::GetAtt: 
+              - "IPv4WhitelistingFunction"
+              - "Arn"
+          Id: "TargetFunctionV1"
+  IPv4PermissionForEventsToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: 
+        Ref: "IPv4WhitelistingFunction"
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: 
+        Fn::GetAtt: 
+          - "IPv4WhitelistingEventRule"
+          - "Arn"
+
+  IPv6WhitelistingFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: IPv6_Whitelisting/
+      Handler: IPv6_Whitelisting.lambda_handler
+      Runtime: python3.9
+      #Description: The function is triggered based on create or insert or update or delete events on secret manager and validates IP address and add the IP's to prefix list if necessary.
+      Policies:
+      - SecretsManagerReadWrite
+      - AmazonSESFullAccess
+      - AdministratorAccess      
+      Timeout: 900          #Runtime Parameters (max value)
+      #MemorySize: 10240     #Runtime Parameters (max value)
+      #Tags:
+  IPv6WhitelistingEventRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "IPv6Whitelisting-EventRule"
+      EventPattern: 
+        source: 
+          - "aws.secretsmanager"
+      State: "ENABLED"
+      Targets: 
+        - 
+          Arn: 
+            Fn::GetAtt: 
+              - "IPv6WhitelistingFunction"
+              - "Arn"
+          Id: "TargetFunctionV1"
+  IPv6PermissionForEventsToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: 
+        Ref: "IPv6WhitelistingFunction"
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: 
+        Fn::GetAtt: 
+          - "IPv6WhitelistingEventRule"
+          - "Arn"
+
+  BankNotificationFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: bank-notification/
+      Handler: notify.lambda_handler
+      Runtime: python3.9
+      Policies:
+      #Description: The function is scheduled once in everyweek Monday 9AM to validate all the secret values and send notification to bank if the ssh keys are older than 1 year
+      - SecretsManagerReadWrite
+      - AmazonSESFullAccess      
+      Timeout: 900          #Runtime Parameters (max value)
+      #MemorySize: 10240     #Runtime Parameters (max value)
+      Events:
+        BankNotificationSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 9 ? * MON *)
+            Name: BankNotificationSchedule
+            Description: BankNotificationSchedule
+            Enabled: true 
+            

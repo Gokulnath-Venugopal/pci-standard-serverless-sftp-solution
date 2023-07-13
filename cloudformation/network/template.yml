@@ -1,0 +1,1175 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation Sample Template VPC_with_PublicIPs_And_DNS: Sample
+  template showing how to create a VPC with DNS and Public IPs enabled. You will be
+  billed for the AWS resources used if you create a stack from this template.'
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Network Configuration & AWS Trasnfer Family"
+        Parameters:
+          - VpcCidr
+          - PublicSubnet1Cidr
+          - PublicSubnet2Cidr
+          - PublicSubnet3Cidr
+      - Label:
+          default: "Network Configuration & AWS Trasnfer Family"
+        Parameters:
+          - HostedZone
+          - DomainName
+      - Label:
+          default: "Logging Configuration"
+        Parameters:
+          - EnableVpcFlowLogs
+          - FlowLogsRentionPeriod
+      - Label:
+          default: "IPv4 and IPv6 CIDR limit for prefixlist"
+        Parameters:
+          - IPv4PrefixlistCidrlimit
+          - IPv6PrefixlistCidrlimit
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - Env
+      - Label:
+          default: "Base S3 Bucket for storing files and folders"
+        Parameters:
+          - BaseS3Bucket
+      - Label:
+          default: "SAM S3 bucket for Step2 Monitoring solution deployment"
+        Parameters:
+          - SAMDeploymentS3BucketName
+Parameters:
+  Env:
+    Description: Specify a valid environment name
+    Default: dev
+    Type: String
+    AllowedValues:
+    - prod
+    - dev
+  VpcCidr:
+    Type: String
+    Default: '10.0.0.0/16'
+    Description: Specify a valid VPC CIDR
+    AllowedPattern: "^(10|172|192)\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\/(16|17|18|19|20|21|22|23|24|25|26|27|28)$"
+  PublicSubnet1Cidr:
+    Type: String
+    Description: Specify a valid CIDR range for public subnet 1
+    Default: '10.0.1.0/24'
+    AllowedPattern: "^(10|172|192)\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\/(16|17|18|19|20|21|22|23|24|25|26|27|28)$"
+  PublicSubnet2Cidr:
+    Type: String
+    Description: Specify a valid CIDR range for public subnet 2
+    Default: '10.0.2.0/24'
+    AllowedPattern: "^(10|172|192)\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\/(16|17|18|19|20|21|22|23|24|25|26|27|28)$"
+  PublicSubnet3Cidr:
+    Type: String
+    Description: Specify a valid CIDR range for public subnet 3
+    Default: '10.0.3.0/24'
+    AllowedPattern: "^(10|172|192)\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\/(16|17|18|19|20|21|22|23|24|25|26|27|28)$"
+  HostedZone:
+    Type: String
+    Description: Specify a valid public hosted zone ID of the base domain
+    #AllowedPattern: "(\\/hostedzone\\/[[:alnum:]]+)$"
+  DomainName:
+    Type: String
+    Description: Specify a valid domain name for the AWS trasnfer family
+    #AllowedPattern: "(.sample.com)$"
+  BaseS3Bucket:
+    Type: String
+    Description: Base S3 Bucket for storing files and folders
+  SAMDeploymentS3BucketName:
+    Type: String
+    Description: SAM S3 bucket for Step2 Monitoring solution deployment
+  IPv4PrefixlistCidrlimit:
+    Type: Number
+    Description: Specify a count of IPv4 IP's that can be added per prefix list.
+    Default: 55
+    MinValue: 1 
+  IPv6PrefixlistCidrlimit:
+    Type: Number
+    Description: Specify a count of IPv6 IP's that can be added per prefix list.
+    Default: 55
+    MinValue: 1
+  CreateServer:
+    AllowedValues:
+    - 'true'
+    - 'false'
+    Type: String
+    Description: Whether this stack creates a server internally or not. If a server
+      is created internally, the customer identity provider is automatically associated
+      with it.
+    Default: 'true'
+  SecretsManagerRegion:
+    Type: String
+    Description: "(Optional) The region the secrets are stored in. If this value is
+      not provided, the region this stack is deployed in will be used. Use this field
+      if you are deploying this stack in a region where SecretsMangager is not available."
+    Default: ''
+  EnableVpcFlowLogs:
+    Type: String
+    Description: Specify if you want to enable VPC flow logs
+    AllowedValues:
+      - true
+      - false
+    Default: true
+  FlowLogsRentionPeriod:
+    Type: Number
+    Description: 'Specify a valid retention period to keep VPC flow logs in CloudWatch.'
+    Default: 7
+    MinValue: 1  
+Conditions:
+  VpcFlowLogs: !Equals [!Ref EnableVpcFlowLogs, true]
+  CreateServer:
+    Fn::Equals:
+    - Ref: CreateServer
+    - 'true'
+  NotCreateServer:
+    Fn::Not:
+    - Condition: CreateServer
+  SecretsManagerRegionProvided:
+    Fn::Not:
+    - Fn::Equals:
+      - Ref: SecretsManagerRegion
+      - ''
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: !Ref VpcCidr
+      Tags:
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Network
+        Value: Public
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - VPC
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: !Ref PublicSubnet1Cidr
+      AvailabilityZone:
+        Fn::Join:
+        - ''
+        - - Ref: AWS::Region
+          - a
+      Tags:
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Network
+        Value: Public1
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - PublicSubnet1
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: !Ref PublicSubnet2Cidr
+      AvailabilityZone:
+        Fn::Join:
+        - ''
+        - - Ref: AWS::Region
+          - b
+      Tags:
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Network
+        Value: Public2
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - PublicSubnet2
+  PublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: !Ref PublicSubnet3Cidr
+      AvailabilityZone:
+        Fn::Join:
+        - ''
+        - - Ref: AWS::Region
+          - c
+      Tags:
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Network
+        Value: Public3
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - PublicSubnet3
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Network
+        Value: Public
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - IGW
+  GatewayToInternet:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+        Ref: VPC
+      InternetGatewayId:
+        Ref: InternetGateway
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Network
+        Value: Public
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - PublicRouteTable
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayToInternet
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: InternetGateway
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PublicSubnet1
+      RouteTableId:
+        Ref: PublicRouteTable
+  PublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PublicSubnet2
+      RouteTableId:
+        Ref: PublicRouteTable
+  PublicSubnetRouteTableAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PublicSubnet3
+      RouteTableId:
+        Ref: PublicRouteTable
+  PublicNetworkAcl:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Network
+        Value: Public
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - PublicNetworkACL
+  InboundSSHPublicNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId:
+        Ref: PublicNetworkAcl
+      RuleNumber: 100
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange:
+        From: 22
+        To: 22
+  InboundEphemeralPublicNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId:
+        Ref: PublicNetworkAcl
+      RuleNumber: 101
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange:
+        From: 1024
+        To: 65535
+  OutboundPublicNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId:
+        Ref: PublicNetworkAcl
+      RuleNumber: 100
+      Protocol: 6
+      RuleAction: allow
+      Egress: true
+      CidrBlock: 0.0.0.0/0
+      PortRange:
+        From: 0
+        To: 65535
+  PublicSubnetNetworkAclAssociation1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId:
+        Ref: PublicSubnet1
+      NetworkAclId:
+        Ref: PublicNetworkAcl
+  PublicSubnetNetworkAclAssociation2:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId:
+        Ref: PublicSubnet2
+      NetworkAclId:
+        Ref: PublicNetworkAcl
+  PublicSubnetNetworkAclAssociation3:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId:
+        Ref: PublicSubnet3
+      NetworkAclId:
+        Ref: PublicNetworkAcl
+  IPv4PrefixList01:
+    Type: AWS::EC2::PrefixList
+    Properties: 
+      AddressFamily: IPv4
+      MaxEntries: !Ref IPv4PrefixlistCidrlimit
+      PrefixListName: AUTOMATED_PREFIXLIST_IPV4
+      Tags: 
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - IPv4PrefixList01
+  IPv4PrefixList02:
+    Type: AWS::EC2::PrefixList
+    Properties: 
+      AddressFamily: IPv4
+      MaxEntries: !Ref IPv4PrefixlistCidrlimit
+      PrefixListName: AUTOMATED_PREFIXLIST_IPV4
+      Tags: 
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - IPv4PrefixList02        
+  
+  IPv4PrefixList03:
+    Type: AWS::EC2::PrefixList
+    Properties: 
+      AddressFamily: IPv4
+      MaxEntries: !Ref IPv4PrefixlistCidrlimit
+      PrefixListName: AUTOMATED_PREFIXLIST_IPV4
+      Tags: 
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - IPv4PrefixList03
+  IPv4PrefixList04:
+    Type: AWS::EC2::PrefixList
+    Properties: 
+      AddressFamily: IPv4
+      MaxEntries: !Ref IPv4PrefixlistCidrlimit
+      PrefixListName: AUTOMATED_PREFIXLIST_IPV4
+      Tags: 
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - IPv4PrefixList04
+  IPv4SecurityGroup01:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName:
+        Fn::Join:
+        - _
+        - - Ref: AWS::StackName
+          - Ref: Env
+          - SEC_GRP_IPv4_01  
+      GroupDescription: 'Enable IPv4 access to the source systems'
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        SourcePrefixListId: 
+          Ref: IPv4PrefixList01
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        DestinationPrefixListId: 
+          Ref: IPv4PrefixList01
+  IPv4SecurityGroup02:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName:
+        Fn::Join:
+        - _
+        - - Ref: AWS::StackName
+          - Ref: Env
+          - SEC_GRP_IPv4_02
+      GroupDescription: 'Enable IPv4 access to the source systems'
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        SourcePrefixListId: 
+          Ref: IPv4PrefixList02
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        DestinationPrefixListId: 
+          Ref: IPv4PrefixList02
+  IPv4SecurityGroup03:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName:
+        Fn::Join:
+        - _
+        - - Ref: AWS::StackName
+          - Ref: Env
+          - SEC_GRP_IPv4_03
+      GroupDescription: 'Enable IPv4 access to the source systems'
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        SourcePrefixListId: 
+          Ref: IPv4PrefixList03
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        DestinationPrefixListId: 
+          Ref: IPv4PrefixList03
+  IPv4SecurityGroup04:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName:
+        Fn::Join:
+        - _
+        - - Ref: AWS::StackName
+          - Ref: Env
+          - SEC_GRP_IPv4_04
+      GroupDescription: 'Enable IPv4 access to the source systems'
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        SourcePrefixListId: 
+          Ref: IPv4PrefixList04
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        DestinationPrefixListId: 
+          Ref: IPv4PrefixList04
+  IPv6PrefixList01:
+    Type: AWS::EC2::PrefixList
+    Properties: 
+      AddressFamily: IPv6
+      MaxEntries: !Ref IPv6PrefixlistCidrlimit
+      PrefixListName: AUTOMATED_PREFIXLIST_IPV6
+      Tags: 
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - IPv6PrefixList01
+  IPv6SecurityGroup01:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName:
+        Fn::Join:
+        - _
+        - - Ref: AWS::StackName
+          - Ref: Env
+          - SEC_GRP_IPv6_01
+      GroupDescription: 'Enable IPv6 access to the source systems'
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        SourcePrefixListId: 
+          Ref: IPv6PrefixList01
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        DestinationPrefixListId: 
+          Ref: IPv6PrefixList01
+  MyEIP1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  MyEIP2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  MyEIP3:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  FlowLogLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: VpcFlowLogs
+    Properties:
+      LogGroupName: 
+        Fn::Join:
+        - _
+        - - Ref: AWS::StackName
+          - Ref: Env
+          - VPCLOG_1
+      RetentionInDays: !Ref FlowLogsRentionPeriod
+  FlowLogsRole:
+    Type: AWS::IAM::Role
+    Condition: VpcFlowLogs
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - vpc-flow-logs.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AllowPublishingFlowLogsToCloudWatch
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: "*"
+  VpcFlowLogs:
+    Type: AWS::EC2::FlowLog
+    Condition: VpcFlowLogs
+    Properties:
+      DeliverLogsPermissionArn: !GetAtt FlowLogsRole.Arn
+      ResourceId: !Ref VPC
+      LogGroupName: !Ref FlowLogLogGroup
+      ResourceType: VPC
+      TrafficType: ALL
+  TransferServerS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BaseS3Bucket
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls : true
+        BlockPublicPolicy : true
+        IgnorePublicAcls : true
+        RestrictPublicBuckets : true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'AES256'
+      Tags:
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - AWSTransferFamilyParentS3Bucket
+  SAMdeploymentS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:  !Ref SAMDeploymentS3BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls : true
+        BlockPublicPolicy : true
+        IgnorePublicAcls : true
+        RestrictPublicBuckets : true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'AES256'
+      Tags:
+      - Key: Application
+        Value:
+          Ref: AWS::StackName
+      - Key: Name
+        Value:
+          Fn::Join:
+          - _
+          - - Ref: AWS::StackName
+            - Ref: Env
+            - SAMDeploymentS3Bucket
+  TransferServer:
+    Type: AWS::Transfer::Server
+    Condition: CreateServer
+    Properties:
+      EndpointType: VPC
+      EndpointDetails:
+        AddressAllocationIds:
+        - Fn::GetAtt:
+          - MyEIP1
+          - AllocationId
+        - Fn::GetAtt:
+          - MyEIP2
+          - AllocationId
+        - Fn::GetAtt:
+          - MyEIP3
+          - AllocationId
+        SecurityGroupIds:
+        - Ref: IPv4SecurityGroup01
+        - Ref: IPv4SecurityGroup02
+        - Ref: IPv4SecurityGroup03
+        - Ref: IPv4SecurityGroup04
+        - Ref: IPv6SecurityGroup01
+        SubnetIds:
+        - Ref: PublicSubnet1
+        - Ref: PublicSubnet2
+        - Ref: PublicSubnet3
+        VpcId:
+          Ref: VPC
+      Tags:
+      - Key: transfer:route53HostedZoneId
+        Value: !Ref HostedZone
+      - Key: transfer:customHostname
+        Value: !Ref DomainName
+      IdentityProviderDetails:
+        InvocationRole:
+          Fn::GetAtt: TransferIdentityProviderRole.Arn
+        Url:
+          Fn::Join:
+          - ''
+          - - https://
+            - Ref: CustomIdentityProviderApi
+            - ".execute-api."
+            - Ref: AWS::Region
+            - ".amazonaws.com/"
+            - Ref: ApiStage
+      IdentityProviderType: API_GATEWAY
+      LoggingRole:
+        Fn::GetAtt: CloudWatchLoggingRole.Arn
+  SFTPServerDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Name: !Ref DomainName
+      HostedZoneId: !Ref HostedZone
+      Type: CNAME
+      Comment: SFTP Transfer custom hostname
+      TTL: 300
+      ResourceRecords:
+      - !Sub ${TransferServer.ServerId}.server.transfer.${AWS::Region}.amazonaws.com
+  CloudWatchLoggingRole:
+    Description: IAM role used by Transfer  to log API requests to CloudWatch
+    Type: AWS::IAM::Role
+    Condition: CreateServer
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - transfer.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: TransferLogsPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:DescribeLogStreams
+            - logs:PutLogEvents
+            Resource:
+              Fn::Sub: "*"
+  CustomIdentityProviderApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: Transfer Custom Identity Provider basic template API
+      Description: API used for GetUserConfig requests
+      FailOnWarnings: true
+      EndpointConfiguration:
+        Types:
+        - REGIONAL
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+      - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+      - PolicyName: LambdaSecretsPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - secretsmanager:GetSecretValue
+            Resource:
+              Fn::Sub:
+              - arn:${AWS::Partition}:secretsmanager:${SecretsRegion}:${AWS::AccountId}:secret:SFTP/*
+              - SecretsRegion:
+                  Fn::If:
+                  - SecretsManagerRegionProvided
+                  - Ref: SecretsManagerRegion
+                  - Ref: AWS::Region
+  ApiCloudWatchLogsRole:
+    Description: IAM role used by API Gateway to log API requests to CloudWatch
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - apigateway.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: ApiGatewayLogsPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+            - logs:PutLogEvents
+            - logs:GetLogEvents
+            - logs:FilterLogEvents
+            Resource: "*"
+  ApiLoggingAccount:
+    Type: AWS::ApiGateway::Account
+    DependsOn:
+    - CustomIdentityProviderApi
+    Properties:
+      CloudWatchRoleArn:
+        Fn::GetAtt: ApiCloudWatchLogsRole.Arn
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId:
+        Ref: ApiDeployment202008
+      MethodSettings:
+      - DataTraceEnabled: false
+        HttpMethod: "*"
+        LoggingLevel: INFO
+        ResourcePath: "/*"
+      RestApiId:
+        Ref: CustomIdentityProviderApi
+      StageName: prod
+  ApiDeployment202008:
+    DependsOn:
+    - GetUserConfigRequest
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId:
+        Ref: CustomIdentityProviderApi
+  TransferIdentityProviderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: transfer.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: TransferCanInvokeThisApi
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - execute-api:Invoke
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${CustomIdentityProviderApi}/prod/GET/*
+      - PolicyName: TransferCanReadThisApi
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - apigateway:GET
+            Resource: "*"
+  GetUserConfigLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile:
+          Fn::Sub: |
+            import os
+            import json
+            import boto3
+            import base64
+            from botocore.exceptions import ClientError
+
+            def lambda_handler(event, context):
+                resp_data = {}
+
+                if 'username' not in event or 'serverId' not in event:
+                    print("Incoming username or serverId missing  - Unexpected")
+                    return response_data
+
+                # It is recommended to verify server ID against some value, this template does not verify server ID
+                input_username = event['username']
+                print("Username: {}, ServerId: {}".format(input_username, event['serverId']));
+
+                if 'password' in event:
+                    input_password = event['password']
+                    if input_password == '' and (event['protocol'] == 'FTP' or event['protocol'] == 'FTPS'):
+                      print("Empty password not allowed")
+                      return response_data
+                else:
+                    print("No password, checking for SSH public key")
+                    input_password = ''
+
+                # Lookup user's secret which can contain the password or SSH public keys
+                resp = get_secret("SFTP/" + input_username)
+
+                if resp != None:
+                    resp_dict = json.loads(resp)
+                else:
+                    print("Secrets Manager exception thrown")
+                    return {}
+
+                if input_password != '':
+                    if 'Password' in resp_dict:
+                        resp_password = resp_dict['Password']
+                    else:
+                        print("Unable to authenticate user - No field match in Secret for password")
+                        return {}
+
+                    if resp_password != input_password:
+                        print("Unable to authenticate user - Incoming password does not match stored")
+                        return {}
+                else:
+                    # SSH Public Key Auth Flow - The incoming password was empty so we are trying ssh auth and need to return the public key data if we have it
+                    if 'PublicKey' in resp_dict:
+                        resp_data['PublicKeys'] = [resp_dict['PublicKey']]
+                    else:
+                        print("Unable to authenticate user - No public keys found")
+                        return {}
+
+                # If we've got this far then we've either authenticated the user by password or we're using SSH public key auth and
+                # we've begun constructing the data response. Check for each key value pair.
+                # These are required so set to empty string if missing
+                if 'Role' in resp_dict:
+                    resp_data['Role'] = resp_dict['Role']
+                else:
+                    print("No field match for role - Set empty string in response")
+                    resp_data['Role'] = ''
+
+                # These are optional so ignore if not present
+                if 'Policy' in resp_dict:
+                    resp_data['Policy'] = resp_dict['Policy']
+
+                if 'HomeDirectoryDetails' in resp_dict:
+                    print("HomeDirectoryDetails found - Applying setting for virtual folders")
+                    resp_data['HomeDirectoryDetails'] = resp_dict['HomeDirectoryDetails']
+                    resp_data['HomeDirectoryType'] = "LOGICAL"
+                elif 'HomeDirectory' in resp_dict:
+                    print("HomeDirectory found - Cannot be used with HomeDirectoryDetails")
+                    resp_data['HomeDirectory'] = resp_dict['HomeDirectory']
+                else:
+                    print("HomeDirectory not found - Defaulting to /")
+
+                print("Completed Response Data: "+json.dumps(resp_data))
+                return resp_data
+
+            def get_secret(id):
+                region = os.environ['SecretsManagerRegion']
+                print("Secrets Manager Region: "+region)
+
+                client = boto3.session.Session().client(service_name='secretsmanager', region_name=region)
+
+                try:
+                    resp = client.get_secret_value(SecretId=id)
+                    # Decrypts secret using the associated KMS CMK.
+                    # Depending on whether the secret is a string or binary, one of these fields will be populated.
+                    if 'SecretString' in resp:
+                        print("Found Secret String")
+                        return resp['SecretString']
+                    else:
+                        print("Found Binary Secret")
+                        return base64.b64decode(resp['SecretBinary'])
+                except ClientError as err:
+                    print('Error Talking to SecretsManager: ' + err.response['Error']['Code'] + ', Message: ' + str(err))
+                    return None
+      Description: A function to lookup and return user data from AWS Secrets Manager.
+      Handler: index.lambda_handler
+      Role:
+        Fn::GetAtt: LambdaExecutionRole.Arn
+      Runtime: python3.7
+      Environment:
+        Variables:
+          SecretsManagerRegion:
+            Fn::If:
+            - SecretsManagerRegionProvided
+            - Ref: SecretsManagerRegion
+            - Ref: AWS::Region
+  GetUserConfigLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:invokeFunction
+      FunctionName:
+        Fn::GetAtt: GetUserConfigLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${CustomIdentityProviderApi}/*
+  ServersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId:
+        Ref: CustomIdentityProviderApi
+      ParentId:
+        Fn::GetAtt:
+        - CustomIdentityProviderApi
+        - RootResourceId
+      PathPart: servers
+  ServerIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId:
+        Ref: CustomIdentityProviderApi
+      ParentId:
+        Ref: ServersResource
+      PathPart: "{serverId}"
+  UsersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId:
+        Ref: CustomIdentityProviderApi
+      ParentId:
+        Ref: ServerIdResource
+      PathPart: users
+  UserNameResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId:
+        Ref: CustomIdentityProviderApi
+      ParentId:
+        Ref: UsersResource
+      PathPart: "{username}"
+  GetUserConfigResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId:
+        Ref: CustomIdentityProviderApi
+      ParentId:
+        Ref: UserNameResource
+      PathPart: config
+  GetUserConfigRequest:
+    Type: AWS::ApiGateway::Method
+    DependsOn: GetUserConfigResponseModel
+    Properties:
+      AuthorizationType: AWS_IAM
+      HttpMethod: GET
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri:
+          Fn::Join:
+          - ''
+          - - 'arn:'
+            - Ref: AWS::Partition
+            - ":apigateway:"
+            - Ref: AWS::Region
+            - ":lambda:path/2015-03-31/functions/"
+            - Fn::GetAtt:
+              - GetUserConfigLambda
+              - Arn
+            - "/invocations"
+        IntegrationResponses:
+        - StatusCode: '200'
+        RequestTemplates:
+          application/json: |
+            {
+              "username": "$util.urlDecode($input.params('username'))",
+              "password": "$util.escapeJavaScript($input.params('Password')).replaceAll("\\'","'")",
+              "protocol": "$input.params('protocol')",
+              "serverId": "$input.params('serverId')",
+              "sourceIp": "$input.params('sourceIp')"
+            }
+      RequestParameters:
+        method.request.header.Password: false
+        method.request.querystring.protocol: false
+        method.request.querystring.sourceIp: false
+      ResourceId:
+        Ref: GetUserConfigResource
+      RestApiId:
+        Ref: CustomIdentityProviderApi
+      MethodResponses:
+      - StatusCode: '200'
+        ResponseModels:
+          application/json: UserConfigResponseModel
+  GetUserConfigResponseModel:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId:
+        Ref: CustomIdentityProviderApi
+      ContentType: application/json
+      Description: API response for GetUserConfig
+      Name: UserConfigResponseModel
+      Schema:
+        "$schema": http://json-schema.org/draft-04/schema#
+        title: UserUserConfig
+        type: object
+        properties:
+          HomeDirectory:
+            type: string
+          Role:
+            type: string
+          Policy:
+            type: string
+          PublicKeys:
+            type: array
+            items:
+              type: string
+  TransferS3AccessRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - transfer.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Description: This Role is created by Cloudformation template, and will be used in the secret manager for the external systems to access the S3 bucket.
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      MaxSessionDuration: 3600
+      RoleName: TransferS3AccessRole
+      Tags:
+        - Key: Application
+          Value:
+            Ref: AWS::StackName
+        - Key: Name
+          Value:
+            Fn::Join:
+            - _
+            - - Ref: AWS::StackName
+              - Ref: Env
+              - S3Role
+Outputs:
+  VPCId:
+    Description: VPCId of the newly created VPC
+    Value:
+      Ref: VPC
+  PublicSubnet1:
+    Description: SubnetId of the public subnet
+    Value:
+      Ref: PublicSubnet1
+  PublicSubnet2:
+    Description: SubnetId of the public subnet
+    Value:
+      Ref: PublicSubnet2
+  PublicSubnet3:
+    Description: SubnetId of the public subnet
+    Value:
+      Ref: PublicSubnet3
